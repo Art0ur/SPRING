@@ -1,0 +1,60 @@
+pipelines:
+  default:
+    - step:
+        name: Build and Test
+        image: gradle:8.6-jdk17
+        caches:
+          - gradle
+        script:
+          - echo "Starting Build and Test"
+          - java -version
+          - chmod +x ./gradlew
+          - ./gradlew --version
+          - ./gradlew clean build
+          - echo "Build and Test completed"
+        artifacts:
+          - build/libs/**
+
+    - step:
+        name: Build Docker Image
+        services:
+          - docker
+        script:
+          - echo "Building Docker image"
+          - docker build -t myapp:latest .
+          - echo "Docker image built successfully"
+        artifacts:
+          - myapp_latest.tar
+
+    - step:
+        name: Deploy to Staging
+        deployment: staging
+        services:
+          - docker
+        script:
+          - echo "Deploying to Staging"
+          - docker load -i myapp_latest.tar
+          - docker run -d -p 8080:8080 myapp:latest
+          - echo "Deployment to Staging completed"
+
+    - step:
+        name: Notify
+        script:
+          - echo "Starting notification step"
+          - apt-get update && apt-get install -y msmtp
+          - echo "account default" > ~/.msmtprc
+          - echo "host smtp.gmail.com" >> ~/.msmtprc
+          - echo "port 587" >> ~/.msmtprc
+          - echo "auth on" >> ~/.msmtprc
+          - echo "user brocooliis@gmail.com" >> ~/.msmtprc
+          - echo "password zhojndqigojxyjmi" >> ~/.msmtprc
+          - echo "tls on" >> ~/.msmtprc
+          - echo "tls_starttls on" >> ~/.msmtprc
+          - echo "tls_trust_file /etc/ssl/certs/ca-certificates.crt" >> ~/.msmtprc
+          - chmod 600 ~/.msmtprc
+          - echo "Spring Boot build and deployment completed" | msmtp -a default brocooliis@gmail.com
+
+definitions:
+  services:
+    docker:
+      memory: 2048
